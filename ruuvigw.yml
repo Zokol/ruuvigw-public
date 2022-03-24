@@ -5,6 +5,7 @@
   become: yes
   become_user: root
   vars:
+    PYTHON: "3.7.2"
     influxdb_version: influxdb_1.8.10_armhf.deb
     grafana_version: grafana_8.3.3_armhf.deb
     database_name: ruuvi
@@ -37,6 +38,7 @@
           - bluez
           - bluez-hcidump
           - python3-pip
+          - python-pip
           - python-setuptools
           - nftables
           - iptables-persistent
@@ -44,6 +46,14 @@
         state: present
         update_cache: yes
         cache_valid_time: 3600
+
+    - name: creating alias
+      shell: echo alias pip=pip3 >> ~/.bashrc
+
+    - name: test and upgrade pip
+      pip: name=pip state=latest
+      tags:
+          - packages
 
     - name: Install Influxdb and Grafana
       apt:
@@ -57,7 +67,7 @@
       shell: "systemctl enable influxdb.service --now"
 
     - name: Prerequisite pip libraries
-      pip: 
+      pip:
         name:
           - requests
           - influxdb==5.2.3 #5.3.0 was broken
@@ -77,12 +87,12 @@
       wait_for:
           port: 3000
           delay: 30
-          
+
     - name: Create ruuvi datasource
       grafana_datasource:
         name: Ruuvi
         ds_type: influxdb
-        ds_url: http://localhost:8086
+        url: http://localhost:8086
         grafana_url: http://localhost:3000
         database: "{{ database_name }}"
         is_default: yes
@@ -134,7 +144,7 @@
       command: netfilter-persistent save
 
     - name: Replace DB name for template
-      shell: "sed -i 's/${DS_RUUVI}/Ruuvi/g' '{{ item }}'"  
+      shell: "sed -i 's/${DS_RUUVI}/Ruuvi/g' '{{ item }}'"
       ignore_errors: yes
       with_fileglob:
         - "/etc/RuuviDashboards/*.json"
@@ -144,9 +154,8 @@
       grafana_dashboard:
         grafana_url: http://localhost:3000
         state: present
-        commit_message: Ruuvi dashboards
+        message: Ruuvi dashboards
         overwrite: yes
         path: "{{ item }}"
       with_fileglob:
         - "/etc/RuuviDashboards/*.json"
-
